@@ -1,0 +1,7 @@
+{
+  "name": "Screen Recorder",
+  "description": "High-definition screen recorder with simultaneous system and mic audio capture, MKV/MP4 export, video trimmer, system monitor, and encrypted cloud backup.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Screen Recorder</string>
+    <string name="tab_record">Recorder</string>
+    <string name="tab_videos">Recordings</string>
+    <string name="tab_monitor">System</string>
+    <string name="tab_cloud">Cloud Vault</string>
+    <string name="tab_settings">Settings</string>
+</resources>
