@@ -33,6 +33,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Close
@@ -52,7 +53,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.VideoLibrary
-import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -316,7 +316,7 @@ fun RecordingsScreen(
                                     .testTag("view_mode_list_button")
                             ) {
                                 Icon(
-                                    Icons.Default.ViewList,
+                                    Icons.AutoMirrored.Filled.ViewList,
                                     contentDescription = "List View",
                                     tint = if (viewMode == GalleryViewMode.LIST) RecorderRed else MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(18.dp)

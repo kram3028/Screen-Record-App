@@ -60,6 +60,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ads.AdManager
+import com.example.data.model.AudioSourceMode
 import com.example.data.model.ProFeatureManager
 import com.example.data.model.RecordingEntity
 import com.example.data.model.RecordingState
@@ -83,6 +84,10 @@ import com.example.util.ShareUtils
 
 class MainActivity : ComponentActivity() {
 
+    companion object {
+        const val EXTRA_SELECTED_TAB = "extra_selected_tab"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -97,12 +102,24 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+    }
 }
 
 @Composable
 fun ScreenRecorderApp(viewModel: RecorderViewModel) {
     val context = LocalContext.current
     val activity = context as? Activity
+
+    LaunchedEffect(activity?.intent) {
+        val targetTab = activity?.intent?.getIntExtra(MainActivity.EXTRA_SELECTED_TAB, -1) ?: -1
+        if (targetTab in 0..4) {
+            viewModel.setSelectedTab(targetTab)
+        }
+    }
     val selectedTab by viewModel.selectedTab.collectAsStateWithLifecycle()
     val allRecordings by viewModel.allRecordings.collectAsStateWithLifecycle()
     val recordingState by viewModel.recordingState.collectAsStateWithLifecycle()
@@ -116,7 +133,6 @@ fun ScreenRecorderApp(viewModel: RecorderViewModel) {
     val cloudSyncProgress by viewModel.cloudSyncProgress.collectAsStateWithLifecycle()
     val downloadingRecordingId by viewModel.downloadingRecordingId.collectAsStateWithLifecycle()
     val isCloudStorageLocked by viewModel.isCloudStorageLocked.collectAsStateWithLifecycle()
-    val firebaseSyncState by viewModel.firebaseSyncState.collectAsStateWithLifecycle()
 
     val activePlayingRecording by viewModel.activePlayingRecording.collectAsStateWithLifecycle()
     val activeTrimmingRecording by viewModel.activeTrimmingRecording.collectAsStateWithLifecycle()
@@ -159,39 +175,78 @@ fun ScreenRecorderApp(viewModel: RecorderViewModel) {
 
     // Media projection launcher
     val projectionManager = remember {
-        context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as? MediaProjectionManager
     }
 
     val projectionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result.resultCode == android.app.Activity.RESULT_OK && result.data != null) {
+        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
             viewModel.startRecordingFlow(result.resultCode, result.data)
         } else {
-            // Permission rejected or canceled by user: start fallback demo session
-            viewModel.startRecordingFlow(0, null)
+            // Permission rejected or canceled by user
+            viewModel.showFeedback("Screen recording permission was cancelled")
         }
     }
 
-    // Permission launcher for microphone and notifications
+    // Permission launcher for microphone (audio recording) and notifications (service controls)
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        // Start screen projection flow
+        val micGranted = permissions[Manifest.permission.RECORD_AUDIO] ?: (
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        )
+        val notifGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions[Manifest.permission.POST_NOTIFICATIONS] ?: (
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+            )
+        } else true
+
+        if (!micGranted && config.audioSource != AudioSourceMode.MUTE) {
+            viewModel.showFeedback("Microphone permission denied. Recording will proceed without audio.")
+        }
+        if (!notifGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            viewModel.showFeedback("Notification permission denied. Controls may not appear in the status bar.")
+        }
+
+        // Proceed to screen capture permission prompt
         try {
-            projectionLauncher.launch(projectionManager.createScreenCaptureIntent())
+            val captureIntent = projectionManager?.createScreenCaptureIntent()
+            if (captureIntent != null) {
+                projectionLauncher.launch(captureIntent)
+            } else {
+                viewModel.showFeedback("Screen capture service is unavailable")
+                viewModel.startRecordingFlow(0, null)
+            }
         } catch (e: Exception) {
+            viewModel.showFeedback("Unable to launch screen capture: ${e.localizedMessage}")
             viewModel.startRecordingFlow(0, null)
         }
     }
 
     val onInitiateRecording: () -> Unit = {
+        activity?.let { AdManager.preloadInterstitial(it) }
         val permissionsToRequest = mutableListOf<String>()
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+
+        // 1. Audio recording permission: check only when audio capture is active
+        val needsAudio = config.audioSource != AudioSourceMode.MUTE
+        val hasAudioPermission = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (needsAudio && !hasAudioPermission) {
             permissionsToRequest.add(Manifest.permission.RECORD_AUDIO)
         }
+
+        // 2. Notification permission: required on Android 13+ (API 33+) for foreground recording service
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            val hasNotifPermission = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+
+            if (!hasNotifPermission) {
                 permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
@@ -199,9 +254,17 @@ fun ScreenRecorderApp(viewModel: RecorderViewModel) {
         if (permissionsToRequest.isNotEmpty()) {
             permissionLauncher.launch(permissionsToRequest.toTypedArray())
         } else {
+            // All required permissions already granted: request screen capture
             try {
-                projectionLauncher.launch(projectionManager.createScreenCaptureIntent())
+                val captureIntent = projectionManager?.createScreenCaptureIntent()
+                if (captureIntent != null) {
+                    projectionLauncher.launch(captureIntent)
+                } else {
+                    viewModel.showFeedback("Screen capture service is unavailable")
+                    viewModel.startRecordingFlow(0, null)
+                }
             } catch (e: Exception) {
+                viewModel.showFeedback("Unable to launch screen capture: ${e.localizedMessage}")
                 viewModel.startRecordingFlow(0, null)
             }
         }
@@ -440,6 +503,18 @@ fun ScreenRecorderApp(viewModel: RecorderViewModel) {
                 activity?.let { AdManager.showInterstitial(it) }
             }
         )
+    }
+
+    LaunchedEffect(showPremiumDialog) {
+        if (showPremiumDialog && activity != null) {
+            AdManager.preloadRewarded(activity)
+        }
+    }
+
+    LaunchedEffect(showProUnlockDialog) {
+        if (showProUnlockDialog && activity != null) {
+            AdManager.preloadRewarded(activity)
+        }
     }
 
     if (showPremiumDialog) {

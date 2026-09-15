@@ -49,8 +49,9 @@ object AdManager {
             MobileAds.initialize(context) { initializationStatus ->
                 Log.d(TAG, "Google Mobile Ads initialized: $initializationStatus")
                 isInitialized = true
-                preloadInterstitial(context)
-                preloadRewarded(context)
+                // Do not eagerly load heavy rewarded video on cold launch to avoid
+                // starting WebView video rendering processes and CORS unsafe header warnings.
+                // Ads are preloaded just-in-time on demand.
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error initializing MobileAds", e)

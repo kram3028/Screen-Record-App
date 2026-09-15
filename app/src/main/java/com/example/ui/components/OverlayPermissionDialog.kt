@@ -15,9 +15,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Layers
-import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -157,7 +157,7 @@ fun OverlayPermissionDialog(
                     shape = RoundedCornerShape(14.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.OpenInNew,
+                        imageVector = Icons.AutoMirrored.Filled.OpenInNew,
                         contentDescription = null,
                         modifier = Modifier.size(18.dp)
                     )

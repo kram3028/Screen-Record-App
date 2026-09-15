@@ -12,7 +12,7 @@ import com.example.data.model.UserDataEntity
 
 @Database(
     entities = [RecordingEntity::class, UserDataEntity::class, DownloadRecordEntity::class],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -25,11 +25,19 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
+                // Clear any legacy Firebase/Firestore sync preferences from persistent storage
+                try {
+                    context.applicationContext.getSharedPreferences("firebase_sync_prefs", Context.MODE_PRIVATE)
+                        .edit()
+                        .clear()
+                        .apply()
+                } catch (_: Exception) {}
+
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "screen_recorder.db"
-                ).fallbackToDestructiveMigration().build()
+                ).fallbackToDestructiveMigration(dropAllTables = true).build()
                 INSTANCE = instance
                 instance
             }

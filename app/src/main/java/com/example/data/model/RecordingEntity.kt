@@ -28,7 +28,5 @@ data class RecordingEntity(
     val isEncrypted: Boolean = false,
     val cloudBackupDate: Long = 0L,
     val cloudStorageId: String = "",
-    val sessionId: String = "",
-    val isFirebaseSynced: Boolean = false,
-    val firebaseSyncTimestamp: Long = 0L
+    val sessionId: String = ""
 )

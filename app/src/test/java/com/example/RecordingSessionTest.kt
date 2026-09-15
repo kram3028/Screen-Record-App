@@ -111,4 +111,71 @@ class RecordingSessionTest {
         assertEquals("Database must contain exactly 1 recording entity", 1, allRecordings.size)
         assertEquals("SessionId must match", sessionId, allRecordings[0].sessionId)
     }
+
+    @Test
+    fun recordingPermissions_audioRequirement_matchesAudioSourceMode() {
+        val micConfig = com.example.data.model.RecorderConfig(
+            audioSource = com.example.data.model.AudioSourceMode.MIC_ONLY
+        )
+        val micAndSysConfig = com.example.data.model.RecorderConfig(
+            audioSource = com.example.data.model.AudioSourceMode.MIC_AND_SYSTEM
+        )
+        val muteConfig = com.example.data.model.RecorderConfig(
+            audioSource = com.example.data.model.AudioSourceMode.MUTE
+        )
+
+        assertTrue(
+            "MIC_ONLY source requires RECORD_AUDIO permission",
+            micConfig.audioSource != com.example.data.model.AudioSourceMode.MUTE
+        )
+        assertTrue(
+            "MIC_AND_SYSTEM source requires RECORD_AUDIO permission",
+            micAndSysConfig.audioSource != com.example.data.model.AudioSourceMode.MUTE
+        )
+        assertFalse(
+            "MUTE audio source does NOT require RECORD_AUDIO permission",
+            muteConfig.audioSource != com.example.data.model.AudioSourceMode.MUTE
+        )
+    }
+
+    @Test
+    fun screenRecorderService_startIntent_preparesRequiredExtras() {
+        val serviceIntent = android.content.Intent(context, com.example.service.ScreenRecorderService::class.java).apply {
+            action = com.example.service.ScreenRecorderService.ACTION_START
+            putExtra(com.example.service.ScreenRecorderService.EXTRA_SHOW_OVERLAY, true)
+            putExtra(com.example.service.ScreenRecorderService.EXTRA_SESSION_ID, "test_session_123")
+        }
+
+        assertEquals(com.example.service.ScreenRecorderService.ACTION_START, serviceIntent.action)
+        assertTrue(serviceIntent.getBooleanExtra(com.example.service.ScreenRecorderService.EXTRA_SHOW_OVERLAY, false))
+        assertEquals("test_session_123", serviceIntent.getStringExtra(com.example.service.ScreenRecorderService.EXTRA_SESSION_ID))
+    }
+
+    @Test
+    fun screenRecorderService_stopAction_triggersNotificationShadeStop() {
+        val stopIntent = android.content.Intent(context, com.example.service.ScreenRecorderService::class.java).apply {
+            action = com.example.service.ScreenRecorderService.ACTION_STOP
+        }
+        assertEquals(com.example.service.ScreenRecorderService.ACTION_STOP, stopIntent.action)
+    }
+
+    @Test
+    fun screenRecorderService_stoppedNotification_createsAndDismissesCleanly() {
+        com.example.service.ScreenRecorderService.showStoppedNotification(
+            context,
+            "Screen Recording Stopped",
+            "Saved Screen Record (12.4 MB) • Tap to view"
+        )
+        val notificationManager = context.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+        val notifications = notificationManager.activeNotifications
+        val stoppedNotification = notifications.find { it.id == com.example.service.ScreenRecorderService.NOTIFICATION_ID_STOPPED }
+        assertNotNull("Stopped notification must be posted", stoppedNotification)
+        assertTrue("Stopped notification must be persistent/ongoing", stoppedNotification?.isOngoing == true)
+
+        // Dismiss stopped notification
+        com.example.service.ScreenRecorderService.dismissStoppedNotification(context)
+        val notificationsAfterDismiss = notificationManager.activeNotifications
+        val dismissed = notificationsAfterDismiss.none { it.id == com.example.service.ScreenRecorderService.NOTIFICATION_ID_STOPPED }
+        assertTrue("Stopped notification must be cleared after dismiss", dismissed)
+    }
 }

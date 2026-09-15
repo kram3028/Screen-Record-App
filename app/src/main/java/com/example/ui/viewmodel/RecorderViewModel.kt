@@ -16,8 +16,6 @@ import com.example.data.model.RecordingState
 import com.example.data.model.VideoFormat
 import com.example.data.model.VideoResolution
 import com.example.data.repository.RecordingRepository
-import com.example.data.sync.FirebaseSyncManager
-import com.example.data.sync.FirebaseSyncState
 import com.example.monitor.SystemMonitor
 import com.example.monitor.SystemResourceStats
 import com.example.recorder.ScreenRecorderEngine
@@ -45,9 +43,6 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
     private val repository = RecordingRepository(application, db.recordingDao())
     private val systemMonitor = SystemMonitor(application)
     private val engine = ScreenRecorderEngine(application, viewModelScope)
-    private val firebaseSyncManager = FirebaseSyncManager.getInstance(application)
-
-    val firebaseSyncState: StateFlow<FirebaseSyncState> = firebaseSyncManager.syncState
 
     val allRecordings: StateFlow<List<RecordingEntity>> = repository.allRecordings
         .stateIn(
@@ -363,9 +358,20 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
                         val sizeFormatted = String.format(Locale.getDefault(), "%.1f MB", mb.coerceAtLeast(0.1))
                         _userFeedbackMessage.value = "Saved $title ($sizeFormatted)"
                         _selectedTab.value = 1 // Switch to Recordings tab
-                        // Auto-sync metadata to Firebase if connected
-                        firebaseSyncManager.scheduleSync("New recording saved")
+
+                        // Show persistent stopped notification with recording details and view action
+                        ScreenRecorderService.showStoppedNotification(
+                            app,
+                            "Screen Recording Stopped",
+                            "Saved $title ($sizeFormatted) • Tap to view"
+                        )
                     }
+                } else {
+                    ScreenRecorderService.showStoppedNotification(
+                        app,
+                        "Screen Recording Stopped",
+                        "Screen recording session ended"
+                    )
                 }
             } catch (e: Exception) {
                 Log.e("RecorderViewModel", "Error in stopRecording", e)
@@ -529,18 +535,6 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
 
     fun showFeedback(message: String) {
         _userFeedbackMessage.value = message
-    }
-
-    fun triggerFirebaseSync() {
-        firebaseSyncManager.scheduleSync("Manual user request")
-    }
-
-    fun setFirebaseAutoSync(enabled: Boolean) {
-        firebaseSyncManager.setAutoSyncEnabled(enabled)
-    }
-
-    fun setFirebaseProjectId(projectId: String) {
-        firebaseSyncManager.setProjectId(projectId)
     }
 
     override fun onCleared() {

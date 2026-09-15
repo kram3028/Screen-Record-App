@@ -55,19 +55,4 @@ interface RecordingDao {
         backupDate: Long,
         storageId: String
     )
-
-    @Query("SELECT * FROM recordings WHERE isFirebaseSynced = 0 ORDER BY createdAt ASC")
-    suspend fun getUnsyncedRecordings(): List<RecordingEntity>
-
-    @Query("UPDATE recordings SET isFirebaseSynced = 1, firebaseSyncTimestamp = :timestamp WHERE id = :id")
-    suspend fun markAsSynced(id: Long, timestamp: Long = System.currentTimeMillis())
-
-    @Query("UPDATE recordings SET isFirebaseSynced = 1, firebaseSyncTimestamp = :timestamp WHERE id IN (:ids)")
-    suspend fun markMultipleAsSynced(ids: List<Long>, timestamp: Long = System.currentTimeMillis())
-
-    @Query("SELECT COUNT(*) FROM recordings WHERE isFirebaseSynced = 0")
-    fun getUnsyncedCountFlow(): Flow<Int>
-
-    @Query("SELECT COUNT(*) FROM recordings WHERE isFirebaseSynced = 1")
-    fun getSyncedCountFlow(): Flow<Int>
 }
